@@ -31,21 +31,33 @@ public class TaskController {
     public ResponseEntity<Task> getTaskById(@PathVariable("id") Long id) {
 
         log.info("Called getTaskById id = {}", id);
-        return ResponseEntity.status(HttpStatus.OK).body(taskService.getTaskById(id));
+        try {
+            return ResponseEntity.status(HttpStatus.OK).body(taskService.getTaskById(id));
+        } catch (NoSuchElementException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
     }
 
     @PostMapping
     public ResponseEntity<Task> createTask(@RequestBody Task createToTask) {
 
         log.info("Called createTask: createToTask={}", createToTask);
-        return ResponseEntity.status(HttpStatus.CREATED).body(taskService.createTask(createToTask));
+        try {
+            return ResponseEntity.status(HttpStatus.CREATED).body(taskService.createTask(createToTask));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<Task> updateTask(@PathVariable("id") Long id, @RequestBody Task updateToTask) {
 
         log.info("Called updateTask: id={} updateToTask={}", id, updateToTask);
-        return ResponseEntity.status(HttpStatus.OK).body(taskService.updateTask(id, updateToTask));
+        try {
+            return ResponseEntity.status(HttpStatus.OK).body(taskService.updateTask(id, updateToTask));
+        } catch (NoSuchElementException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
     }
 
     @DeleteMapping("/{id}")
