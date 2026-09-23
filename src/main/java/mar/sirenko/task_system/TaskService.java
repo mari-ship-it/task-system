@@ -34,7 +34,7 @@ public class TaskService {
 
     public Task createTask(Task createToTask) {
 
-        if (createToTask.id() != null && createToTask.status() != null) {
+        if (createToTask.id() != null) {
             throw new IllegalArgumentException("Id should be empty");
         }
         if (createToTask.status() != null) {
