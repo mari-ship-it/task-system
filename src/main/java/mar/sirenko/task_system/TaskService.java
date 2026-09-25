@@ -1,84 +1,152 @@
 package mar.sirenko.task_system;
 
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashMap;
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class TaskService {
 
-    private final Map<Long, Task> tasksMap;
-    private final AtomicLong idCounter;
+    private final TaskRepository taskRepository;
 
-    public TaskService() {
-        this.tasksMap = new HashMap<>();
-        idCounter = new AtomicLong();
+    public TaskService(TaskRepository taskRepository) {
+        this.taskRepository = taskRepository;
     }
 
-    public Task getTaskById(Long id) {
+    @Transactional(readOnly = true)
+    public Task getTaskById(
+            Long id
+    ) {
+        return taskRepository.findById(id)
+                .map(this::toDomainTask)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Not found task by id: id = " + id
+                ));
+    }
 
-        if (!tasksMap.containsKey(id)) {
-            throw new NoSuchElementException("Not found task by id: id = " + id);
+    @Transactional(readOnly = true)
+    public List<Task> findAllTasks(
+    ) {
+        return taskRepository.findAll()      //возможна выгрузка большого к-ва данных(добавить пагинацию)
+                .stream()
+                .map(this::toDomainTask)
+                .toList();
+    }
+
+    @Transactional
+    public Task startTask(
+            Long id
+    ) {
+        TaskEntity taskEntity = taskRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Not found task by id: id = " + id)
+                );
+
+        Long assignedUserId = taskEntity.getAssignedUserId();
+
+        if (assignedUserId == null) {
+            throw new IllegalArgumentException("AssignedUserId should be not empty");
         }
-        return tasksMap.get(id);
+
+        if (taskEntity.getStatus() == TaskStatus.IN_PROGRESS) {
+            return toDomainTask(taskEntity);
+        }
+
+        Long activeTaskCount = taskRepository.countByAssignedUserIdAndStatus(
+                assignedUserId, TaskStatus.IN_PROGRESS);
+
+        if (activeTaskCount > 4) {
+            throw new IllegalArgumentException("More than 4 active tasks");
+        }
+
+        taskEntity.setStatus(TaskStatus.IN_PROGRESS);
+        return toDomainTask(taskEntity);
     }
 
-    public List<Task> findAllTasks() {
-
-        return tasksMap.values().stream().toList();
-    }
-
-    public Task createTask(Task createToTask) {
-
+    @Transactional
+    public Task createTask(
+            Task createToTask
+    ) {
         if (createToTask.id() != null) {
             throw new IllegalArgumentException("Id should be empty");
         }
         if (createToTask.status() != null) {
             throw new IllegalArgumentException("Status should be empty");
         }
-        Task newTask = new Task(
-                idCounter.incrementAndGet(),
+        TaskEntity entityToSave = new TaskEntity(
+                null,
                 createToTask.creatorId(),
                 createToTask.assignedUserId(),
                 TaskStatus.CREATED,
-                createToTask.createDateTime(),
+                LocalDateTime.now(),
                 createToTask.deadlineDate(),
                 createToTask.priority()
         );
-        tasksMap.put(newTask.id(), newTask);
-        return newTask;
+        TaskEntity savedEntity = taskRepository.save(entityToSave);
+        return toDomainTask(savedEntity);
     }
 
-    public Task updateTask(Long id, Task updateToTask) {
+    @Transactional
+    public Task updateTask(
+            Long id, Task taskToUpdate
+    ) {
+        TaskEntity taskEntity = taskRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Not found task by id: id = " + id));
 
-        if (!tasksMap.containsKey(id)) {
-            throw new NoSuchElementException("Not found task by id: id = " + id);
+        TaskStatus newStatus = taskEntity.getStatus() == TaskStatus.DONE ?
+                TaskStatus.IN_PROGRESS : taskEntity.getStatus();
+
+        if (newStatus == TaskStatus.IN_PROGRESS && taskEntity.getStatus() == TaskStatus.DONE) {
+            Long assignedUserId = taskToUpdate.assignedUserId();
+
+            if (assignedUserId == null) {
+                throw new IllegalArgumentException("AssignedUserId should be not empty");
+            }
+
+            Long activeTaskCount = taskRepository.countByAssignedUserIdAndStatus(
+                    assignedUserId, TaskStatus.IN_PROGRESS);
+
+            if (activeTaskCount > 4) {
+                throw new IllegalArgumentException("More than 4 active tasks");
+            }
         }
-        Task task = tasksMap.get(id);
-        TaskStatus newStatus = task.status().equals(TaskStatus.DONE) ?
-                TaskStatus.IN_PROGRESS : updateToTask.status();
-        Task updateTask = new Task(
-                task.id(),
-                updateToTask.creatorId(),
-                updateToTask.assignedUserId(),
-                newStatus,
-                updateToTask.createDateTime(),
-                updateToTask.deadlineDate(),
-                updateToTask.priority()
-                );
-        tasksMap.put(updateTask.id(), updateTask);
-        return updateTask;
+
+        taskEntity.setCreatorId(taskToUpdate.creatorId());
+        taskEntity.setAssignedUserId(taskToUpdate.assignedUserId());
+        taskEntity.setStatus(newStatus);
+        taskEntity.setDeadlineDate(taskToUpdate.deadlineDate());
+        taskEntity.setPriority(taskToUpdate.priority());
+
+        return toDomainTask(taskEntity);
     }
 
-    public void deleteTask(Long id) {
+    @Transactional
+    public void deleteTask(
+            Long id
+    ) {
+        TaskEntity taskEntity = taskRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Not found task by id: id = " + id));
 
-        if (!tasksMap.containsKey(id)) {
-            throw new NoSuchElementException("Not found task by id: id = " + id);
-        }
-        tasksMap.remove(id);
+        taskRepository.delete(taskEntity);
     }
+
+    private Task toDomainTask(
+            TaskEntity task
+    ) {
+        return new Task(
+                task.getId(),
+                task.getCreatorId(),
+                task.getAssignedUserId(),
+                task.getStatus(),
+                task.getCreateDateTime(),
+                task.getDeadlineDate(),
+                task.getPriority()
+        );
+    }
+
 }

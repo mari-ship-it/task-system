@@ -1,5 +1,6 @@
 package mar.sirenko.task_system;
 
+import jakarta.persistence.EntityNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -45,6 +46,19 @@ public class TaskController {
         try {
             return ResponseEntity.status(HttpStatus.CREATED).body(taskService.createTask(createToTask));
         } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+    }
+
+    @PostMapping("/{id}/start")
+    public ResponseEntity<Task> startTask(
+            @PathVariable("id") Long id
+    ) {
+        log.info("Celled startTask: id={}", id);
+
+        try {
+            return ResponseEntity.status(HttpStatus.OK).body(taskService.startTask(id));
+        } catch (EntityNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
     }
