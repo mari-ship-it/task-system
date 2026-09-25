@@ -79,7 +79,7 @@ public class TaskController {
 
         log.info("Called deleteTask: id={}", id);
         try {
-            taskService.deleteTask(id);
+            taskService.closeTask(id);
             return ResponseEntity.status(HttpStatus.OK).build();
         } catch (NoSuchElementException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();

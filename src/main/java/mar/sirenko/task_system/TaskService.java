@@ -1,6 +1,8 @@
 package mar.sirenko.task_system;
 
 import jakarta.persistence.EntityNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -10,6 +12,7 @@ import java.util.List;
 @Service
 public class TaskService {
 
+    private static final Logger log = LoggerFactory.getLogger(TaskService.class);
     private final TaskRepository taskRepository;
 
     public TaskService(TaskRepository taskRepository) {
@@ -59,7 +62,7 @@ public class TaskService {
                 assignedUserId, TaskStatus.IN_PROGRESS);
 
         if (activeTaskCount > 4) {
-            throw new IllegalArgumentException("More than 4 active tasks");
+            throw new IllegalArgumentException("More than 5 active tasks");
         }
 
         taskEntity.setStatus(TaskStatus.IN_PROGRESS);
@@ -92,7 +95,7 @@ public class TaskService {
     @Transactional
     public Task updateTask(
             Long id, Task taskToUpdate
-    ) {
+    ) {                                                      //заменить удаление таска из БД на изменение статуса "DONE"
         TaskEntity taskEntity = taskRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Not found task by id: id = " + id));
@@ -111,7 +114,7 @@ public class TaskService {
                     assignedUserId, TaskStatus.IN_PROGRESS);
 
             if (activeTaskCount > 4) {
-                throw new IllegalArgumentException("More than 4 active tasks");
+                throw new IllegalArgumentException("More than 5 active tasks");
             }
         }
 
@@ -125,14 +128,17 @@ public class TaskService {
     }
 
     @Transactional
-    public void deleteTask(
+    public void closeTask(
             Long id
     ) {
         TaskEntity taskEntity = taskRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Not found task by id: id = " + id));
 
-        taskRepository.delete(taskEntity);
+        if (taskEntity.getStatus() != TaskStatus.DONE) {
+            log.info("Task was successfully closed id={}", id);
+            taskEntity.setStatus(TaskStatus.DONE);
+        }
     }
 
     private Task toDomainTask(
